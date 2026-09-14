@@ -1,0 +1,142 @@
+{
+  "run_arguments": {
+    "pump_um": 1.75,
+    "signal_um": 3.5,
+    "pulse_fs": 1198.96,
+    "pump_fwhm_nm": null,
+    "alpha": 5.0,
+    "crystal_length_mm": 30.0,
+    "target_sigma_mm": 6.0,
+    "min_domain_um": 0.5,
+    "qpm_period_um": 15.497,
+    "length_rounding": "floor",
+    "particles": 24,
+    "iterations": 100,
+    "cycles": 5,
+    "prior_pso_iterations": 500,
+    "initial_noise": 0.005,
+    "noise_decay": 0.6,
+    "seed": 7,
+    "device": "cpu",
+    "wavelength_chunk": 96,
+    "symmetric": false,
+    "polish_iterations": 0,
+    "objective": "legacy_intensity",
+    "sampling": "wavelength",
+    "q_points": 601,
+    "q_span_sigma": 15.0,
+    "optimization_span_nm": 60.0,
+    "jsa_grid": 200,
+    "jsa_span_nm": 60.0,
+    "jsa_tick_nm": 20.0,
+    "pump_scan_min_nm": 0.5,
+    "pump_scan_max_nm": 8.0,
+    "pump_coarse_step_nm": 0.1,
+    "pump_fine_halfspan_nm": 1.0,
+    "pump_fine_step_nm": 0.01,
+    "skip_jsa": false,
+    "initial_duties_npy": "output/qute_500nm_pure_pso_0500/optimized_duties.npy",
+    "prior_history_npy": "output/qute_500nm_pure_pso_0500/pso_history.npy",
+    "evaluate_only": false,
+    "output": "output/qute_500nm_pure_pso_1000"
+  },
+  "runtime": {
+    "python": "3.12.13",
+    "python_executable": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python",
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "elapsed_before_saving_seconds": 382.501717313
+  },
+  "geometry": {
+    "pump_wavelength_um": 1.75,
+    "signal_wavelength_um": 3.5,
+    "idler_wavelength_um": 3.5,
+    "pump_polarization": "y",
+    "signal_polarization": "y",
+    "idler_polarization": "z",
+    "calculated_qpm_period_um": 15.50037043769857,
+    "qpm_period_um": 15.497,
+    "qpm_period_source": "user",
+    "requested_crystal_length_um": 30000.0,
+    "number_periods": 1935,
+    "crystal_length_um": 29986.695,
+    "length_rounding": "floor",
+    "target_sigma_z_um": 6000.0,
+    "alpha_actual": 4.9977825,
+    "min_domain_um": 0.5,
+    "duty_min": 0.03226430922113958,
+    "duty_max": 0.9677356907788605,
+    "pump_intensity_fwhm_fs": 1198.96,
+    "pump_intensity_fwhm_nm": 3.759731104068591,
+    "pump_sigma_omega_rad_s": 1388794640618.0315,
+    "group_index_pump": 2.2619977987006825,
+    "group_index_signal": 2.302572483094781,
+    "group_index_idler": 2.230098593691405
+  },
+  "optimization": {
+    "algorithm": "particle_swarm_optimization",
+    "objective": "legacy_intensity",
+    "sampling": "wavelength",
+    "sample_points": 601,
+    "optimization_wavelength_span_nm": 60.0,
+    "particles": 24,
+    "iterations_per_cycle": 100,
+    "cycles": 5,
+    "prior_pso_iterations": 500,
+    "current_pso_iterations": 500,
+    "total_pso_iterations": 1000,
+    "initial_noise": 0.005,
+    "noise_decay": 0.6,
+    "symmetric": false,
+    "device_requested": "cpu",
+    "device_resolved": "cpu",
+    "cuda_device_name": null,
+    "best_cost": 8.452457300611989e-07,
+    "seed": 7,
+    "history_points": 1001
+  },
+  "constraints": {
+    "configured_min_domain_um": 0.5,
+    "minimum_optimized_domain_um": 0.4999999999999995,
+    "constraint_satisfied": true
+  },
+  "peak_amplitude": {
+    "periodic": 0.6365871696620014,
+    "erf_initial": 0.43609082809204847,
+    "optimized": 0.17738657514869777
+  },
+  "relative_peak_efficiency": {
+    "periodic": 0.9998975782023531,
+    "erf_initial": 0.46923852325226506,
+    "optimized": 0.07763923572502637
+  },
+  "jsa_convention": {
+    "grid": "uniform_wavelength",
+    "grid_size": 200,
+    "wavelength_span_nm": 60.0,
+    "x_axis": "signal",
+    "y_axis": "idler",
+    "pmf_used_for_schmidt": "magnitude",
+    "pump_scan": "Py_JSI_SPDC two-stage coarse/fine scan"
+  },
+  "structures": {
+    "periodic": {
+      "optimized_pump_intensity_fwhm_nm": 2.4200000000000004,
+      "purity": 0.8639774052437869,
+      "complex_purity_at_same_pump": 0.8298115661088139,
+      "pump_optimum_at_scan_boundary": false
+    },
+    "erf_initial": {
+      "optimized_pump_intensity_fwhm_nm": 2.8000000000000003,
+      "purity": 0.9801800827669916,
+      "complex_purity_at_same_pump": 0.9730891971702381,
+      "pump_optimum_at_scan_boundary": false
+    },
+    "optimized": {
+      "optimized_pump_intensity_fwhm_nm": 3.7899999999999783,
+      "purity": 0.9964661428428122,
+      "complex_purity_at_same_pump": 0.9956712526144871,
+      "pump_optimum_at_scan_boundary": false
+    }
+  }
+}

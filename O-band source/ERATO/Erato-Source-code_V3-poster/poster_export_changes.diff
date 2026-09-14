@@ -1,0 +1,79 @@
+--- before/(a) Py_SFG_correct-6.py
++++ after/(a) Py_SFG_correct-6.py
+@@ -755,6 +755,23 @@
+ 
+     fig.tight_layout(rect=[0, 0, 0.98, 0.95])
+     fig.savefig(out_png, dpi=300)
++
++    # Additional poster export: same canvas ratio/font sizes as poster_a.
++    fig.set_size_inches(8.8, 6.5)
++    ax.title.set_visible(False)
++    ax.set_xlabel("Wavelength (nm)", fontsize=30)
++    ax.set_ylabel("Normalized SFG (a.u.)", fontsize=30)
++    ax.xaxis.set_major_locator(ticker.MultipleLocator(20))
++    ax.xaxis.set_minor_locator(ticker.MultipleLocator(10))
++    ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
++    ax.tick_params(axis="both", labelsize=22)
++    ax.yaxis.get_offset_text().set_fontsize(22)
++    for legend_text in ax.get_legend().get_texts():
++        legend_text.set_fontsize(12)
++    fig.tight_layout(pad=0.7)
++    fig.savefig("poster_fig17.png", dpi=300)
++    with open("poster_fig17.pdf", "wb") as pdf_file:
++        fig.savefig(pdf_file, format="pdf")
+     plt.close(fig)
+     print("Saved:", out_png)
+ 
+--- before/(b) Py_JSI_SPDC.py
++++ after/(b) Py_JSI_SPDC.py
+@@ -335,8 +335,50 @@
+     panel.yaxis.set_minor_locator(MultipleLocator(10))
+     panel.tick_params(axis='both', labelsize=18)
+ 
++# Slightly enlarge color-bar numbers only; retain the wavelength tick size.
++for panel_image in (im1, im2, im3, im4):
++    panel_image.colorbar.ax.tick_params(labelsize=12)
++
+ plt.tight_layout()
+ plt.show()
++
++def save_bare_panel(figure, output_stem):
++    # Render into memory before writing each complete export to disk.
++    for extension in ('png', 'pdf'):
++        with io.BytesIO() as buffer:
++            figure.savefig(buffer, format=extension, dpi=300)
++            with open(output_stem + '.' + extension, 'wb') as output_file:
++                output_file.write(buffer.getvalue())
++
++
++# Four independent bare panels for flexible poster placement.
++# Copy each existing plotted array/norm/cmap; do not repeat or modify calculations.
++for panel_image, output_stem in (
++    (im1, "poster_b1_pmf_theory_bare"),
++    (im2, "poster_b2_pmf_experiment_bare"),
++    (im3, "poster_b3_jsa_theory_bare"),
++    (im4, "poster_b4_jsa_experiment_bare"),
++):
++    fig_bare, ax_bare = plt.subplots(figsize=(7.0, 6.5))
++    image_bare = ax_bare.imshow(
++        panel_image.get_array(), extent=panel_image.get_extent(),
++        origin=panel_image.origin, aspect='auto',
++        cmap=panel_image.get_cmap(), norm=panel_image.norm)
++    ax_bare.set_box_aspect(1)
++    ax_bare.set_xlim(panel_image.axes.get_xlim())
++    ax_bare.set_ylim(panel_image.axes.get_ylim())
++    ax_bare.xaxis.set_major_locator(FixedLocator(np.arange(1270, 1341, 20)))
++    ax_bare.yaxis.set_major_locator(FixedLocator(np.arange(1530, 1601, 20)))
++    ax_bare.xaxis.set_minor_locator(MultipleLocator(10))
++    ax_bare.yaxis.set_minor_locator(MultipleLocator(10))
++    ax_bare.tick_params(axis='both', labelsize=18)
++    colorbar_bare = fig_bare.colorbar(
++        image_bare, ax=ax_bare, fraction=0.046, pad=0.025)
++    colorbar_bare.ax.tick_params(labelsize=12)
++    # No axis titles, plot titles, panel letters, or in-plot annotations.
++    fig_bare.tight_layout(pad=0.7)
++    save_bare_panel(fig_bare, output_stem)
++    plt.close(fig_bare)
+ 
+ # Additional single-panel output; reuse the existing experimental JSA unchanged.
+ fig_poster, ax_poster = plt.subplots(figsize=(8.5, 7.8))

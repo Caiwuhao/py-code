@@ -1,0 +1,130 @@
+--- original/(a) Py_SFG_correct-6.py
++++ modified/(a) Py_SFG_correct-6.py
+@@ -444,7 +444,7 @@
+     y_g_norm = gauss(xd, A_fourstep, mu_fourstep, sigma) / ref
+     y_s_norm = sinc2_curve(xd, mu_fourstep, FWHM_fourstep, A_fourstep) / ref
+ 
+-    fig, ax = plt.subplots(figsize=(8.8, 4.6))
++    fig, ax = plt.subplots(figsize=(8.8, 6.5))
+     
+     # === 关键修改：使用 semilogy 并设置 LogFormatter ===
+     ax.semilogy(x, y_plot, linestyle='none', marker='o', ms=2.0,
+@@ -464,8 +464,12 @@
+     # y轴范围：从 -50dB (1e-5) 到 略大于 0dB (1.5)
+     ax.set_ylim(1e-5, 1.5) 
+     
+-    ax.set_xlabel("Wavelength (nm)")
+-    ax.set_ylabel("Normalized SFG (log scale)") # 修改 Label
++    ax.set_xlabel("Wavelength (nm)", fontsize=30)
++    ax.set_ylabel("Normalized SFG (log scale)", fontsize=30) # 修改 Label
++    # Poster display only: sparse wavelength labels, retained minor ticks.
++    ax.xaxis.set_major_locator(ticker.FixedLocator(np.arange(1530, 1610, 20)))
++    ax.xaxis.set_minor_locator(ticker.MultipleLocator(10))
++    ax.tick_params(axis="both", labelsize=22)
+     ax.grid(alpha=0.3, which="both") # which="both" 显示次级刻度网格
+     
+     # 设置 Y 轴刻度显示为 10^-x
+@@ -475,7 +479,7 @@
+     ax.legend(
+         loc="upper right", bbox_to_anchor=(0.98, 0.98),
+         frameon=True, fancybox=True,
+-        handlelength=1.4, handletextpad=0.6, borderpad=0.3
++        handlelength=1.4, handletextpad=0.6, borderpad=0.3, fontsize=12
+     )
+ 
+     title1 = "Four-step BG-removed Normalized SFG vs Wavelength (C+L, Log scale)"
+@@ -483,7 +487,13 @@
+     ax.set_title(title1 + "\n" + title2)
+     
+     fig.tight_layout(rect=[0,0,0.98,0.95])
+-    fig.savefig(out_png, dpi=300); plt.close(fig)
++    fig.savefig(out_png, dpi=300)
++    # Additional title-free output for direct insertion into the summary slide.
++    ax.title.set_visible(False)
++    fig.tight_layout(pad=0.7)
++    fig.savefig("poster_a.png", dpi=300)
++    fig.savefig("poster_a.pdf")
++    plt.close(fig)
+     print("Saved:", out_png)
+ 
+ # 8) Fig.8 —— Log Scale + 理论曲线
+--- original/(b) Py_JSI_SPDC.py
++++ modified/(b) Py_JSI_SPDC.py
+@@ -8,6 +8,7 @@
+ from scipy.linalg import svd
+ import io, re, os
+ import colorsys
++from matplotlib.ticker import MultipleLocator, FixedLocator
+ 
+ # ================= 1. 物理参数 =================
+ LAMBDA_UM = 37.71066
+@@ -326,8 +327,42 @@
+ axes[1,1].set_xlabel("Signal Wavelength (nm)")
+ plt.colorbar(im4, ax=axes[1,1], label='Intensity')
+ 
++# Poster display only: every other wavelength tick is labelled.
++for panel in axes.flat:
++    panel.xaxis.set_major_locator(FixedLocator(np.arange(1270, 1341, 20)))
++    panel.yaxis.set_major_locator(FixedLocator(np.arange(1530, 1601, 20)))
++    panel.xaxis.set_minor_locator(MultipleLocator(10))
++    panel.yaxis.set_minor_locator(MultipleLocator(10))
++    panel.tick_params(axis='both', labelsize=18)
++
+ plt.tight_layout()
+ plt.show()
++
++# Additional single-panel output; reuse the existing experimental JSA unchanged.
++fig_poster, ax_poster = plt.subplots(figsize=(8.5, 7.8))
++im_poster = ax_poster.imshow(
++    I_JSA_Exp_Norm + 1e-15, extent=extent, origin='lower',
++    aspect='auto', cmap=my_cmap, norm=norm_cfg)
++ax_poster.set_box_aspect(1)
++ax_poster.set_xlabel("Signal Wavelength (nm)", fontsize=30)
++ax_poster.set_ylabel("Idler Wavelength (nm)", fontsize=30)
++ax_poster.xaxis.set_major_locator(FixedLocator(np.arange(1270, 1341, 20)))
++ax_poster.yaxis.set_major_locator(FixedLocator(np.arange(1530, 1601, 20)))
++ax_poster.xaxis.set_minor_locator(MultipleLocator(10))
++ax_poster.yaxis.set_minor_locator(MultipleLocator(10))
++ax_poster.tick_params(axis='both', labelsize=22)
++cbar_poster = fig_poster.colorbar(im_poster, ax=ax_poster, fraction=0.046, pad=0.025)
++cbar_poster.ax.tick_params(labelsize=16)
++ax_poster.text(0.97, 0.97, '(b)', transform=ax_poster.transAxes,
++               fontsize=30, color='white', ha='right', va='top')
++ax_poster.text(0.10, 0.06,
++               rf'$\Delta\lambda_p = {best_bw_exp:.2f}\,\mathrm{{nm}}$' + '\n' +
++               rf'$P = {best_purity_exp * 100:.2f}\%$',
++               transform=ax_poster.transAxes, fontsize=27, color='white', linespacing=1.5)
++fig_poster.tight_layout(pad=0.7)
++fig_poster.savefig("poster_b.png", dpi=300)
++fig_poster.savefig("poster_b.pdf")
++plt.close(fig_poster)
+ 
+ # --- coarse scan ---
+ pump_bws_coarse = np.arange(0.5, 8.0 + 1e-12, 0.1)
+--- original/(c) g^(2)_real.py
++++ modified/(c) g^(2)_real.py
+@@ -51,13 +51,14 @@
+ )
+ 
+ # Labels
+-ax.set_xlabel(r'$\Delta T$ (a.u.)', fontsize=20)
+-ax.set_ylabel('Coincidences (a.u.)', fontsize=20)
++ax.set_xlabel(r'$\Delta T$ (a.u.)', fontsize=32)
++ax.set_ylabel('Coincidences (a.u.)', fontsize=32)
+ 
+ # Limits and ticks
+ ax.set_ylim(0, 2.00)
+ ax.set_xticks(x)
+-ax.tick_params(axis='both', labelsize=18, length=5, width=1.0)
++ax.set_yticks(np.arange(0, 2.01, 0.5))
++ax.tick_params(axis='both', labelsize=24, length=5, width=1.0)
+ 
+ # Boxed frame: keep all spines visible
+ ax.spines['top'].set_visible(True)
+@@ -77,4 +78,6 @@
+ )
+ 
+ plt.tight_layout()
++fig.savefig("poster_c.png", dpi=300)
++fig.savefig("poster_c.pdf")
+ plt.show()

@@ -1,0 +1,70 @@
+{
+  "geometry": {
+    "pump_wavelength_um": 1.75,
+    "signal_wavelength_um": 3.5,
+    "idler_wavelength_um": 3.5,
+    "pump_polarization": "y",
+    "signal_polarization": "y",
+    "idler_polarization": "z",
+    "qpm_period_um": 15.50037043769857,
+    "number_periods": 1935,
+    "crystal_length_um": 29993.21679694673,
+    "target_sigma_z_um": 6000.1922541777085,
+    "alpha_actual": 4.998709295700247,
+    "min_domain_um": 0.5,
+    "duty_min": 0.032257293592412875,
+    "duty_max": 0.9677427064075871,
+    "pump_intensity_fwhm_fs": 1198.96,
+    "pump_intensity_fwhm_nm": 3.759731104068591,
+    "pump_sigma_omega_rad_s": 1388794640618.0315,
+    "group_index_pump": 2.2619977987006825,
+    "group_index_signal": 2.302572483094781,
+    "group_index_idler": 2.230098593691405
+  },
+  "optimization": {
+    "objective": "complex_amplitude",
+    "particles": 48,
+    "iterations": 200,
+    "symmetric": true,
+    "device": "cuda",
+    "best_cost": 0.05801531629144538,
+    "seed": 7
+  },
+  "constraints": {
+    "minimum_optimized_domain_um": 0.5,
+    "maximum_optimized_domain_um": 15.00037043769857
+  },
+  "peak_amplitude": {
+    "periodic": 0.6366197723675814,
+    "erf_initial": 0.33240163437769205,
+    "optimized": 0.26856404167658965,
+    "ideal_truncated_gaussian": 0.3152643037301948
+  },
+  "relative_peak_efficiency": {
+    "periodic": 1.0,
+    "erf_initial": 0.27262523631531943,
+    "optimized": 0.17796536195301202,
+    "ideal_truncated_gaussian": 0.2452388968266875
+  },
+  "purity": {
+    "periodic": 0.7062828048899084,
+    "erf_initial": 0.9219323072826493,
+    "optimized": 0.9755433990298565
+  },
+  "jsa_evaluation": {
+    "plot_span_sigma": 4.5,
+    "signal_wavelength_range_nm": [
+      3459.8235125576966,
+      3541.1205323284253
+    ],
+    "idler_wavelength_range_nm": [
+      3459.8235125576966,
+      3541.1205323284253
+    ],
+    "optimized_purity_by_span_sigma": {
+      "4.5": 0.9755433990298565,
+      "6.0": 0.9733692758736223,
+      "8.0": 0.9701039617977593
+    }
+  }
+}

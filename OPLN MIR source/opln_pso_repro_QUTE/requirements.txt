@@ -1,0 +1,6 @@
+numpy>=1.26
+scipy>=1.11
+matplotlib>=3.8
+
+# CuPy is optional. In the user's Conda environment install it separately:
+# conda install -c conda-forge cupy

@@ -1,0 +1,8 @@
+numpy>=1.26
+scipy>=1.11 #erf definition
+matplotlib>=3.8
+
+# Optional CUDA backend. Install the build matching the local CUDA runtime,
+# for example: cupy-cuda12x>=13
+
+cupy-cuda12x>=13

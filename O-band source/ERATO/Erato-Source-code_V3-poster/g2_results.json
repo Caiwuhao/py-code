@@ -1,0 +1,96 @@
+{
+  "data_file": "/workspace/scratch/91ac3e8bf4ec/revision/Erato-Source code/data260123-g(2)-2.txt",
+  "data_sha256": "34833a883fe54e74b16f33f61613cd816e92b9b913d6eb52ce25b73c01fd7b25",
+  "input_coordinate_units": "as exported; no ns conversion assumed",
+  "integration": "sum of counts at the three bin centres listed for each peak",
+  "configuration": {
+    "data_file": "data260123-g(2)-2.txt",
+    "integration_window_note": "Inclusive histogram bin centres; these windows reproduce the previously reported seven raw 3-bin peak integrals. Bounds specify measured data bins, not bar heights.",
+    "integration_windows": [
+      {
+        "relative_peak": -3,
+        "first_bin_centre": 53,
+        "last_bin_centre": 55
+      },
+      {
+        "relative_peak": -2,
+        "first_bin_centre": 119,
+        "last_bin_centre": 121
+      },
+      {
+        "relative_peak": -1,
+        "first_bin_centre": 185,
+        "last_bin_centre": 187
+      },
+      {
+        "relative_peak": 0,
+        "first_bin_centre": 251,
+        "last_bin_centre": 253
+      },
+      {
+        "relative_peak": 1,
+        "first_bin_centre": 316,
+        "last_bin_centre": 318
+      },
+      {
+        "relative_peak": 2,
+        "first_bin_centre": 382,
+        "last_bin_centre": 384
+      },
+      {
+        "relative_peak": 3,
+        "first_bin_centre": 448,
+        "last_bin_centre": 450
+      }
+    ],
+    "background_measurement": {
+      "reference_window_bins": 3,
+      "counts_per_reference_window": 293.7,
+      "standard_error_per_reference_window": 4.5,
+      "source": "Tohoku_University_Thesis_Ph_D_Wuhao_Cai_final.pdf, Sec. 5.4.7, printed p. 85 / PDF p. 99, Eq. (5.22).",
+      "note": "Previously recorded measured background. The historical estimator/mask is not supplied; this script does not claim to reconstruct it or infer background from a target purity."
+    }
+  },
+  "raw_integrals": [
+    4142.0,
+    4110.0,
+    4304.0,
+    7940.0,
+    4067.0,
+    4060.0,
+    4092.0
+  ],
+  "corrected_integrals": [
+    3848.3,
+    3816.3,
+    4010.3,
+    7646.3,
+    3773.3,
+    3766.3,
+    3798.3
+  ],
+  "normalized_corrected_integrals": [
+    1.0033459639852602,
+    0.9950027810609747,
+    1.0455833275394562,
+    1.9935774873114092,
+    0.9837916290064659,
+    0.9819665577417784,
+    0.990309740666064
+  ],
+  "CC_raw": 7940.0,
+  "CC_raw_standard_error": 89.10667763978185,
+  "ACC_raw_mean": 4129.166666666667,
+  "ACC_raw_mean_standard_error": 37.02649201735308,
+  "CC_corrected": 7646.3,
+  "ACC_corrected_mean": 3835.466666666667,
+  "g2_raw": 1.9229061553985871,
+  "g2_corrected": 1.9935774873114092,
+  "g2_standard_error": 0.030190803073097818,
+  "purity_percent": 99.35774873114092,
+  "purity_standard_error_percent": 3.019080307309782,
+  "annotation": "Purity:\n99.4 ± 3.0%",
+  "uncertainty_method": "sqrt(CC_raw); SEM of six raw side peaks; shared-background derivative",
+  "background_note": "Recorded measurement input; its historical estimation algorithm is not in the supplied source.",
+  "configuration_file": "/workspace/scratch/91ac3e8bf4ec/revision/Erato-Source code/g2_config.json"
+}

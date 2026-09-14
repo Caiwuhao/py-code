@@ -1,0 +1,136 @@
+{
+  "run_arguments": {
+    "pump_um": 1.75,
+    "signal_um": 3.5,
+    "pulse_fs": 1198.96,
+    "pump_fwhm_nm": null,
+    "alpha": 5.0,
+    "crystal_length_mm": null,
+    "target_sigma_mm": null,
+    "min_domain_um": 0.5,
+    "particles": 48,
+    "iterations": 200,
+    "cycles": 1,
+    "prior_pso_iterations": 0,
+    "initial_noise": 0.06,
+    "noise_decay": 0.85,
+    "seed": 7,
+    "device": "auto",
+    "wavelength_chunk": 96,
+    "symmetric": false,
+    "polish_iterations": 0,
+    "objective": "legacy_intensity",
+    "sampling": "wavelength",
+    "q_points": 601,
+    "q_span_sigma": 15.0,
+    "optimization_span_nm": 60.0,
+    "jsa_grid": 200,
+    "jsa_span_nm": 60.0,
+    "jsa_tick_nm": 20.0,
+    "pump_scan_min_nm": 0.5,
+    "pump_scan_max_nm": 8.0,
+    "pump_coarse_step_nm": 0.1,
+    "pump_fine_halfspan_nm": 1.0,
+    "pump_fine_step_nm": 0.01,
+    "skip_jsa": false,
+    "initial_duties_npy": null,
+    "prior_history_npy": null,
+    "evaluate_only": false,
+    "output": "output\\run_3500nm"
+  },
+  "runtime": {
+    "python": "3.12.14",
+    "python_executable": "C:\\Users\\Cai\\anaconda3\\envs\\my_env\\python.exe",
+    "numpy": "2.5.2",
+    "scipy": "1.17.1",
+    "elapsed_before_saving_seconds": 66.57787809998263
+  },
+  "geometry": {
+    "pump_wavelength_um": 1.75,
+    "signal_wavelength_um": 3.5,
+    "idler_wavelength_um": 3.5,
+    "pump_polarization": "y",
+    "signal_polarization": "y",
+    "idler_polarization": "z",
+    "qpm_period_um": 15.50037043769857,
+    "number_periods": 1935,
+    "crystal_length_um": 29993.21679694673,
+    "target_sigma_z_um": 6000.1922541777085,
+    "alpha_actual": 4.998709295700247,
+    "min_domain_um": 0.5,
+    "duty_min": 0.032257293592412875,
+    "duty_max": 0.9677427064075871,
+    "pump_intensity_fwhm_fs": 1198.96,
+    "pump_intensity_fwhm_nm": 3.759731104068591,
+    "pump_sigma_omega_rad_s": 1388794640618.0315,
+    "group_index_pump": 2.2619977987006825,
+    "group_index_signal": 2.302572483094781,
+    "group_index_idler": 2.230098593691405
+  },
+  "optimization": {
+    "algorithm": "particle_swarm_optimization",
+    "objective": "legacy_intensity",
+    "sampling": "wavelength",
+    "sample_points": 601,
+    "optimization_wavelength_span_nm": 60.0,
+    "particles": 48,
+    "iterations_per_cycle": 200,
+    "cycles": 1,
+    "prior_pso_iterations": 0,
+    "current_pso_iterations": 200,
+    "total_pso_iterations": 200,
+    "initial_noise": 0.06,
+    "noise_decay": 0.85,
+    "symmetric": false,
+    "device_requested": "auto",
+    "device_resolved": "cuda",
+    "cuda_device_name": "NVIDIA GeForce RTX 4090",
+    "best_cost": 1.4250249450429722e-06,
+    "seed": 7,
+    "history_points": 201
+  },
+  "constraints": {
+    "configured_min_domain_um": 0.5,
+    "minimum_optimized_domain_um": 0.5,
+    "constraint_satisfied": true
+  },
+  "peak_amplitude": {
+    "periodic": 0.6366197723675814,
+    "erf_initial": 0.43608225707439024,
+    "optimized": 0.09078091007893768
+  },
+  "relative_peak_efficiency": {
+    "periodic": 1.0,
+    "erf_initial": 0.4692200784151509,
+    "optimized": 0.02033428089394263
+  },
+  "jsa_convention": {
+    "grid": "uniform_wavelength",
+    "grid_size": 200,
+    "wavelength_span_nm": 60.0,
+    "x_axis": "signal",
+    "y_axis": "idler",
+    "pmf_used_for_schmidt": "magnitude",
+    "pump_scan": "Py_JSI_SPDC two-stage coarse/fine scan"
+  },
+  "structures": {
+    "periodic": {
+      "optimized_pump_intensity_fwhm_nm": 2.4300000000000006,
+      "purity": 0.8643441292675601,
+      "complex_purity_at_same_pump": 0.8300576276047268,
+      "pump_optimum_at_scan_boundary": false
+    },
+    "erf_initial": {
+      "optimized_pump_intensity_fwhm_nm": 2.8100000000000005,
+      "purity": 0.9801722933313946,
+      "complex_purity_at_same_pump": 0.973070810202006,
+      "pump_optimum_at_scan_boundary": false
+    },
+    "optimized": {
+      "optimized_pump_intensity_fwhm_nm": 3.7899999999999783,
+      "purity": 0.992599297960458,
+      "complex_purity_at_same_pump": 0.9891061348472286,
+      "pump_optimum_at_scan_boundary": false
+    }
+  }
+}

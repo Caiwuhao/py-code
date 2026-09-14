@@ -1,0 +1,49 @@
+{
+  "geometry": {
+    "pump_wavelength_um": 1.56,
+    "signal_wavelength_um": 3.12,
+    "idler_wavelength_um": 3.12,
+    "pump_polarization": "y",
+    "signal_polarization": "y",
+    "idler_polarization": "z",
+    "qpm_period_um": 15.399410673983054,
+    "number_periods": 102,
+    "crystal_length_um": 1570.7398887462714,
+    "target_sigma_z_um": 313.22544917815725,
+    "alpha_actual": 5.01472627102168,
+    "min_domain_um": 0.5,
+    "duty_min": 0.0324687749801191,
+    "duty_max": 0.9675312250198809,
+    "pump_intensity_fwhm_fs": 60.0,
+    "pump_intensity_fwhm_nm": 59.72303540719569,
+    "pump_sigma_omega_rad_s": 27751820371923.25,
+    "group_index_pump": 2.2650338038594833,
+    "group_index_signal": 2.2872270317388574,
+    "group_index_idler": 2.2114388501272444
+  },
+  "optimization": {
+    "objective": "complex_amplitude",
+    "particles": 8,
+    "iterations": 5,
+    "symmetric": true,
+    "device": "cuda",
+    "best_cost": 0.23426386186948228,
+    "seed": 7
+  },
+  "constraints": {
+    "minimum_optimized_domain_um": 0.5,
+    "maximum_optimized_domain_um": 14.899410673983054
+  },
+  "peak_amplitude": {
+    "periodic": 0.6366197723675814,
+    "erf_initial": 0.33240059413336764,
+    "optimized": 0.31694914869290813,
+    "ideal_truncated_gaussian": 0.3143459464477263
+  },
+  "relative_peak_efficiency": {
+    "periodic": 1.0,
+    "erf_initial": 0.27262352996744577,
+    "optimized": 0.24786712720355208,
+    "ideal_truncated_gaussian": 0.24381222784794562
+  }
+}

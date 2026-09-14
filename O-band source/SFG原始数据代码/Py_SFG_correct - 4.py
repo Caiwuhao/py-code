@@ -1,0 +1,805 @@
+# ================== 替换为你的文件名 ==================
+C_FILE = "SFG20251024173128.txt"
+L_FILE = "SFG20251027120732.txt"
+
+# -*- coding: utf-8 -*-
+import io, re, math
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+from scipy.optimize import curve_fit, brentq
+
+def to_db(y, ref):
+    y = np.asarray(y, float)
+    return 10*np.log10(np.maximum(y, 1e-15) / max(ref, 1e-15))
+
+def DR_from_means_db(y):
+    y = np.asarray(y, float); y_pos = y[y > 0]
+    return np.nan if len(y_pos) < 2 else 10*np.log10(y_pos.max() / y_pos.min())
+
+# ========= 全局风格 =========
+mpl.rcParams.update({
+    "figure.dpi": 150,
+    "savefig.dpi": 300,
+    "lines.solid_capstyle": "butt",
+    "lines.dash_capstyle":  "butt",
+})
+
+# ========= 颜色/样式 =========
+COL_DATA  = "#e69f00"
+COL_GAUSS = "#61b9ea"
+COL_SINC2 = "#009d72"
+COL_PMF   = "#d62728"
+
+GAUSS_LW  = 1.2
+SINC_LW   = 1.2
+SINC_DASH = [3.0, 3.0]
+
+DATA_MS   = 2.0
+ERR_ELW   = 0.8
+ERR_CAP   = 0
+
+# ========= 读表 =========
+def read_numeric_table(path):
+    with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+        lines = [ln for ln in f.readlines() if re.match(r'^\s*[+-]?\d', ln)]
+    arr = np.loadtxt(io.StringIO(''.join(lines)))
+    if arr.ndim == 1: arr = arr.reshape(1, -1)
+    df = pd.DataFrame(arr)
+    while df.shape[1] < 9: df[df.shape[1]] = np.nan
+    df.columns = ["wl","p2","o_wl","p4","sfg","norm","bg00","bg01","bg10"]
+    return df.dropna()
+
+# ========= 每 λ 丢前 50，求均值/标准差 =========
+def drop50_stats(df, col):
+    out=[]
+    for wl,g in df.groupby("wl"):
+        v = g[col].to_numpy()[50:]
+        if len(v) > 5:
+            out.append((wl, v.mean(), v.std(ddof=1)))
+    return pd.DataFrame(out, columns=["wl","y","yerr"]).sort_values("wl")
+
+# ========= 四步相减相加（丢前 50） =========
+def fourstep(df):
+    out=[]
+    for wl,g in df.groupby("wl"):
+        g  = g.iloc[50:]
+        v5 = g["sfg"];  v7 = g["bg00"]; v8 = g["bg01"]; v9 = g["bg10"]
+        p2 = g["p2"];   p4 = g["p4"]
+        if min(len(v5),len(v7),len(v8),len(v9),len(p2),len(p4)) < 5:
+            continue
+        A   = v5.mean() - v8.mean() - v9.mean() + v7.mean()
+        sA  = math.sqrt(v5.std()**2 + v8.std()**2 + v9.std()**2 + v7.std()**2)
+        D   = p2.mean() * p4.mean()
+        out.append((wl, A/D, sA/D))
+    return pd.DataFrame(out, columns=["wl","y","yerr"]).sort_values("wl")
+
+# ========= 模型/拟合 =========
+def gauss(x, A, mu, sigma):
+    return A * np.exp(-(x - mu)**2 / (2*sigma**2))
+
+def sinc2_curve(x, mu, FWHM, A):
+    t_half = 0.443
+    a = (FWHM/2) / t_half if FWHM>0 else 1.0
+    return A * (np.sinc((x - mu)/a))**2
+
+def initial_guess(x, y):
+    i    = int(np.argmax(y))
+    mu0  = float(x[i]); A0 = float(y[i]); half = A0/2
+    xL, xR = mu0-0.8, mu0+0.8
+    if i>0:
+        left = np.where(y[:i] <= half)[0]
+        if len(left):
+            j = left[-1]
+            xL = np.interp(half, [y[j], y[j+1]], [x[j], x[j+1]])
+    if i < len(y)-1:
+        right = np.where(y[i:] <= half)[0]
+        if len(right):
+            k = right[0] + i
+            xR = np.interp(half, [y[k-1], y[k]], [x[k-1], x[k]])
+    FWHM0 = max(0.2, min(8.0, xR-xL))
+    sigma0 = FWHM0 / (2*np.sqrt(2*np.log(2)))
+    return A0, mu0, sigma0
+
+def fit_weighted_gauss(x, y, s):
+    s = np.asarray(s, float)
+    s[~np.isfinite(s) | (s<=0)] = np.median(s[s>0]) if np.any(s>0) else 1.0
+    A0, mu0, sigma0 = initial_guess(x, y)
+    bounds = ([0.0, x.min()-1.0, 0.05], [10.0*np.max(y), x.max()+1.0, 20.0])
+    try:
+        popt,_ = curve_fit(gauss, x, y, p0=[A0, mu0, sigma0],
+                           sigma=s, absolute_sigma=True,
+                           bounds=bounds, maxfev=100000)
+        A, mu, sigma = map(float, popt)
+    except Exception:
+        A, mu, sigma = A0, mu0, sigma0
+    FWHM = 2*np.sqrt(2*np.log(2))*sigma
+    return A, mu, FWHM
+
+def DR_minmax_db(y):
+    y = np.asarray(y, float); y_pos = y[y>0]
+    if len(y_pos) < 2: return np.nan
+    return 10*np.log10(y_pos.max()/y_pos.min())
+
+def set_title_two_lines(ax, line1, line2=None):
+    ax.set_title(line1 + ("\n"+line2 if line2 else ""))
+
+def ylim_for_zoom(xd, y_model, xlim, y, yerr, pad=1.15):
+    mask = (xd>=xlim[0]) & (xd<=xlim[1])
+    ymax = 0.0
+    if np.any(mask): ymax = max(ymax, float(np.nanmax(y_model[mask])))
+    if len(y):       ymax = max(ymax, float(np.nanmax(y)))
+    ymin = 0.0
+    if len(y): ymin = min(0.0, float(np.nanmin(y - yerr)) * 1.15)
+    return ymin, ymax*pad if ymax>0 else 1.0
+
+# ========= 统一绘图 =========
+def draw_panel(spec, mu, FWHM, A, xfull, out_png, title1, title2=None,
+               zoom_xlim=None, label_data="data (mean ± 1σ)", ylim=None):
+    x = spec["wl"].to_numpy(); y = spec["y"].to_numpy(); s = spec["yerr"].to_numpy()
+    xd = np.linspace(xfull[0], xfull[1], 1400)
+    sigma = FWHM/(2*np.sqrt(2*np.log(2)))
+    y_g = gauss(xd, A, mu, sigma)
+    y_s = sinc2_curve(xd, mu, FWHM, A)
+
+    fig, ax = plt.subplots(figsize=(8.8,4.6))
+    ax.errorbar(x, y, yerr=s, fmt='o', ms=DATA_MS,
+                mfc=COL_DATA, mec=COL_DATA, mew=0,
+                ecolor=COL_DATA, elinewidth=ERR_ELW, capsize=ERR_CAP,
+                label=label_data)
+    lg, = ax.plot(xd, y_g, color=COL_GAUSS, lw=GAUSS_LW, label="Gaussian")
+    ls, = ax.plot(xd, y_s, color=COL_SINC2, lw=SINC_LW, label="sinc²"); ls.set_dashes(SINC_DASH)
+
+    set_title_two_lines(ax, title1, title2)
+    ax.set_xlabel("Wavelength (nm)")
+    ax.set_ylabel("Normalized SFG (a.u.)")
+    ax.legend(loc="upper left", bbox_to_anchor=(0.02,0.98),
+              frameon=True, fancybox=True, handlelength=1.4,
+              handletextpad=0.6, borderpad=0.3)
+    ax.grid(alpha=0.3)
+
+    if zoom_xlim is not None:
+        ax.set_xlim(zoom_xlim)
+        if ylim is not None:
+            ax.set_ylim(ylim)
+        else:
+            ymin, ymax = ylim_for_zoom(xd, y_g, zoom_xlim, y, s)
+            ax.set_ylim(ymin, ymax)
+    else:
+        if ylim is not None:
+            ax.set_ylim(ylim)
+
+    fig.tight_layout(rect=[0,0,0.98,0.95])
+    fig.savefig(out_png); plt.close(fig)
+    print("Saved:", out_png)
+
+def draw_panel_db(spec, mu, FWHM, A, xfull, out_png, title1, title2=None,
+                  zoom_xlim=None, label_data="data (mean ± 1σ)"):
+    x = spec["wl"].to_numpy(); y = spec["y"].to_numpy(); s = spec["yerr"].to_numpy()
+    ref = float(np.nanmax(y))
+    y_c_db  = to_db(y, ref)
+    y_lo_db = to_db(np.maximum(y - s, 1e-15), ref)
+    y_hi_db = to_db(y + s, ref)
+    yerr_db = np.vstack([y_c_db - y_lo_db, y_hi_db - y_c_db])
+
+    xd = np.linspace(xfull[0], xfull[1], 1400)
+    sigma = FWHM / (2*np.sqrt(2*np.log(2)))
+    y_g_db  = to_db(gauss(xd, A, mu, sigma), ref)
+    y_s_db  = to_db(sinc2_curve(xd, mu, FWHM, A), ref)
+
+    fig, ax = plt.subplots(figsize=(8.8, 4.6))
+    ax.errorbar(x, y_c_db, yerr=yerr_db, fmt='o', ms=DATA_MS,
+                mfc=COL_DATA, mec=COL_DATA, mew=0,
+                ecolor=COL_DATA, elinewidth=ERR_ELW, capsize=ERR_CAP,
+                label=label_data)
+    lg, = ax.plot(xd, y_g_db, color=COL_GAUSS, lw=GAUSS_LW, label="Gaussian")
+    ls, = ax.plot(xd, y_s_db, color=COL_SINC2, lw=SINC_LW, label="sinc²")
+    try: ls.set_linestyle((0, (6, 6)))
+    except TypeError: ls.set_dashes([6, 6])
+
+    if zoom_xlim is not None:
+        ax.set_xlim(zoom_xlim)
+    db_min = float(np.nanmin(y_lo_db))
+    ax.set_ylim(db_min - 2.0, 1.0)
+    ax.set_xlabel("Wavelength (nm)")
+    ax.set_ylabel("Relative power (dB vs peak)")
+    ax.legend(loc="upper left", bbox_to_anchor=(0.02, 0.98),
+              frameon=True, fancybox=True, handlelength=1.4,
+              handletextpad=0.6, borderpad=0.3)
+    ax.grid(alpha=0.3)
+
+    dr_db = DR_from_means_db(y)
+    title2 = (title2 or f"μ={mu:.3f} nm, FWHM={FWHM:.3f} nm, DR={dr_db:.2f} dB")
+    set_title_two_lines(ax, title1, title2)
+
+    fig.tight_layout(rect=[0, 0, 0.98, 0.95])
+    fig.savefig(out_png); plt.close(fig)
+    print(f"Saved (dB): {out_png}  |  DR={dr_db:.2f} dB")
+
+def draw_panel_db_meanonly(spec, mu, FWHM, A, xfull, out_png, title1, title2=None,
+                           zoom_xlim=None, label_data="data (mean only)", ylim_db=(-50.0, 0.0)):
+    x = spec["wl"].to_numpy(); y = spec["y"].to_numpy()
+    ref = float(np.nanmax(y))
+    def _to_db(arr, refv): arr = np.asarray(arr, float); return 10*np.log10(np.maximum(arr, 1e-15) / max(refv, 1e-15))
+    y_db = _to_db(y, ref)
+
+    xd = np.linspace(xfull[0], xfull[1], 1400)
+    sigma = FWHM / (2*np.sqrt(2*np.log(2)))
+    y_g_db = _to_db(gauss(xd, A, mu, sigma), ref)
+    y_s_db = _to_db(sinc2_curve(xd, mu, FWHM, A), ref)
+
+    fig, ax = plt.subplots(figsize=(8.8, 4.6))
+    ax.plot(x, y_db, linestyle='none', marker='o', ms=DATA_MS,
+            mfc=COL_DATA, mec=COL_DATA, mew=0, label=label_data)
+    lg, = ax.plot(xd, y_g_db, color=COL_GAUSS, lw=GAUSS_LW, label="Gaussian")
+    ls, = ax.plot(xd, y_s_db, color=COL_SINC2, lw=SINC_LW, label="sinc²")
+    try: ls.set_linestyle((0, (6, 6)))
+    except TypeError: ls.set_dashes([6, 6])
+
+    if zoom_xlim is not None: ax.set_xlim(zoom_xlim)
+    ax.set_ylim(ylim_db)
+    ax.set_xlabel("Wavelength (nm)")
+    ax.set_ylabel("Relative power (dB vs peak)")
+    ax.legend(loc="upper left", bbox_to_anchor=(0.02, 0.98),
+              frameon=True, fancybox=True, handlelength=1.4,
+              handletextpad=0.6, borderpad=0.3)
+    ax.grid(alpha=0.3)
+
+    if title2 is None:
+        title2 = f"μ={mu:.3f} nm, FWHM={FWHM:.3f} nm"
+    set_title_two_lines(ax, title1, title2)
+
+    fig.tight_layout(rect=[0,0,0.98,0.95])
+    fig.savefig(out_png); plt.close(fig)
+    print("Saved (dB, mean only):", out_png)
+
+# ================== 做 C 模型（加权高斯） ==================
+dfC = read_numeric_table(C_FILE)
+specC_norm = drop50_stats(dfC, "norm")
+specC_4st  = fourstep(dfC)
+
+A_Cn, mu_Cn, FWHM_Cn = fit_weighted_gauss(specC_norm["wl"], specC_norm["y"], specC_norm["yerr"])
+A_C4, mu_C4, FWHM_C4 = fit_weighted_gauss(specC_4st["wl"],  specC_4st["y"],  specC_4st["yerr"])
+
+DR_Cn = DR_minmax_db(specC_norm["y"])
+DR_C4 = DR_minmax_db(specC_4st["y"])
+
+C_xlim = (float(specC_norm["wl"].min()) - 0.7,
+          float(specC_norm["wl"].max()) + 0.7)
+
+dfL = read_numeric_table(L_FILE)
+specL_norm = drop50_stats(dfL, "norm")
+specL_4st  = fourstep(dfL)
+
+x_min = float(min(specC_norm["wl"].min(), specC_4st["wl"].min(),
+                  specL_norm["wl"].min(), specL_4st["wl"].min()))
+x_max = float(max(specC_norm["wl"].max(), specC_4st["wl"].max(),
+                  specL_norm["wl"].max(), specL_4st["wl"].max()))
+xfull = (x_min, x_max)
+
+L_xlim = (float(specL_norm["wl"].min())-0.7, float(specL_norm["wl"].max())+0.7)
+C_xlim = (float(specC_norm["wl"].min()) - 0.7,
+          float(specC_norm["wl"].max()) + 0.7)
+
+# ---- Fig1/2/3 的 y 轴范围 ----
+_y = specC_norm["y"].to_numpy(); _s = specC_norm["yerr"].to_numpy()
+_lo = np.nanmin(_y - _s); _hi = np.nanmax(_y + _s); _sp = max(1e-12, _hi - _lo)
+ylim_C_norm = (min(_lo - 0.08*_sp, -0.03*np.nanmax(_y)), _hi + 0.08*_sp)
+
+_y = specC_4st["y"].to_numpy(); _s = specC_4st["yerr"].to_numpy()
+_lo = np.nanmin(_y - _s); _hi = np.nanmax(_y + _s); _sp = max(1e-12, _hi - _lo)
+ylim_C_4step = (min(_lo - 0.08*_sp, -0.03*np.nanmax(_y)), _hi + 0.08*_sp)
+
+_y = specL_norm["y"].to_numpy(); _s = specL_norm["yerr"].to_numpy()
+_lo = np.nanmin(_y - _s); _hi = np.nanmax(_y + _s); _sp = max(1e-12, _hi - _lo)
+ylim_L_norm = (min(_lo - 0.08*_sp, -0.03*np.nanmax(_y)), _hi + 0.08*_sp)
+
+# ================== 六张图（原有） ==================
+draw_panel(specC_norm, mu_Cn, FWHM_Cn, A_Cn, xfull,
+           "fig1_C_band_norm.png",
+           "Normalized SFG vs Wavelength - Gaussian Fit",
+           f"μ={mu_Cn:.3f} nm, FWHM={FWHM_Cn:.3f} nm, DR={DR_Cn:.2f} dB",
+           zoom_xlim=C_xlim, ylim=ylim_C_norm)
+
+draw_panel(specC_4st, mu_C4, FWHM_C4, A_C4, xfull,
+           "fig2_C_band_4step.png",
+           "Four-step BG-removed Normalized SFG vs Wavelength - Gaussian Fit",
+           f"μ={mu_C4:.3f} nm, FWHM={FWHM_C4:.3f} nm, DR={DR_C4:.2f} dB",
+           zoom_xlim=C_xlim, ylim=ylim_C_4step)
+
+draw_panel(specL_norm, mu_Cn, FWHM_Cn, A_Cn, xfull,
+           "fig3_L_band_zoom_norm.png",
+           "Normalized SFG vs Wavelength (L-band zoom)\nC-model overlaid",
+           zoom_xlim=L_xlim, label_data="L-band data (mean ± 1σ)",
+           ylim=ylim_L_norm)
+
+draw_panel(specL_4st,  mu_C4, FWHM_C4, A_C4, xfull,
+           "fig4_L_band_zoom_4step.png",
+           "Four-step BG-removed Normalized SFG (L-band zoom)\nC-model overlaid",
+           zoom_xlim=L_xlim, label_data="L-band data (mean ± 1σ)")
+
+spec_full_norm = pd.concat([specC_norm, specL_norm], ignore_index=True).sort_values("wl")
+DR_full_n = DR_minmax_db(spec_full_norm["y"])
+draw_panel(spec_full_norm, mu_Cn, FWHM_Cn, A_Cn, xfull,
+           "fig5_full_norm.png",
+           "Normalized SFG vs Wavelength - Gaussian Fit (C+L)",
+           f"μ={mu_Cn:.3f} nm, FWHM={FWHM_Cn:.3f} nm, DR={DR_full_n:.2f} dB")
+
+spec_full_4 = pd.concat([specC_4st, specL_4st], ignore_index=True).sort_values("wl")
+DR_full_4 = DR_minmax_db(spec_full_4["y"])
+draw_panel(spec_full_4, mu_C4, FWHM_C4, A_C4, xfull,
+           "fig6_full_4step.png",
+           "Four-step BG-removed Normalized SFG vs Wavelength (C+L)\nGaussian Fit",
+           f"μ={mu_C4:.3f} nm, FWHM={FWHM_C4:.3f} nm, DR={DR_full_4:.2f} dB")
+
+# 7) 仅均值、无误差棒；Y 轴到 -50 dB
+draw_panel_db_meanonly(spec_full_4, mu_C4, FWHM_C4, A_C4, xfull,
+                       "fig7_full_4step_dB.png",
+                       "Four-step BG-removed Normalized SFG vs Wavelength (C+L, dB scale)",
+                       ylim_db=(-50.0, 0.0))
+
+# ================== CPKTP 理论 PMF（叠加到 Fig.7 形成 Fig.8） ==================
+import numpy as np
+from scipy.optimize import brentq
+
+LAM_S0 = 1290.56
+LAMBDA_UM = 37.71066
+LAMBDA_NM = LAMBDA_UM * 1000.0
+D_HALF_NM = LAMBDA_NM / 2.0
+
+_A_RAW = [
+  1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+  1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,1,1,1,1,1,
+  1,-1,-1,-1,-1,-1,-1,-1,1,1,1,-1,-1,-1,-1,-1,1,1,
+  1,-1,-1,-1,1,1,1,-1,-1,-1,1,1,1,-1,-1,-1,
+  1,-1,-1,-1,1,-1,-1,-1,1,-1,-1,-1,1,-1,1,1,1,-1,
+  1,-1,1,1,1,-1,1,-1,1,-1,-1,-1,1,-1,1,-1,1,-1,
+  1,-1,1,1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,
+  1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,
+  1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,
+  1,1,-1,1,-1,1,-1,1,-1,1,-1,1,1,1,-1,1,-1,1,-1,1,
+  1,1,-1,1,-1,-1,-1,1,-1,1,1,1,-1,1,-1,-1,-1,
+  1,-1,-1,-1,1,1,1,-1,1,1,1,-1,-1,-1,1,1,
+  1,-1,-1,-1,1,1,1,-1,-1,-1,-1,-1,1,1,1,1,
+  1,-1,-1,-1,-1,-1,1,1,1,1,1,1,
+  1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,1,1,1,1,1,1,
+  1,1,1,1,1,1,1,1
+]
+A_SIGN = np.array(_A_RAW[:265], float)
+
+def _ny_um(u): return np.sqrt(3.45018 + 0.04341/(u*u-0.04597) + 16.98825/(u*u-39.43799))
+def _nz_um(u): return np.sqrt(4.59423 + 0.06206/(u*u-0.04763) + 110.80672/(u*u-86.12171))
+def n_y_nm(lam_nm): return _ny_um(np.asarray(lam_nm)*1e-3)
+def n_z_nm(lam_nm): return _nz_um(np.asarray(lam_nm)*1e-3)
+def n_p(lam_nm): return n_y_nm(lam_nm)
+def n_s(lam_nm): return n_z_nm(lam_nm)
+def n_i(lam_nm): return n_y_nm(lam_nm)
+
+def lambda_p(ls_nm, li_nm):
+    ls = np.asarray(ls_nm, float); li = np.asarray(li_nm, float)
+    return (ls*li)/(ls+li)
+
+def k_basic_nm(ls_nm, li_nm):
+    lp = lambda_p(ls_nm, li_nm)
+    return 2*np.pi*( n_p(lp)/lp - n_s(ls_nm)/ls_nm - n_i(li_nm)/li_nm )
+
+def delta_k_grating_nm(ls_nm, li_nm):
+    return k_basic_nm(ls_nm, li_nm) + 2*np.pi/LAMBDA_NM
+
+def _phi_of_k(d_nm, k):
+    k = np.atleast_1d(k).astype(complex)
+    j = np.arange(A_SIGN.size, dtype=float)
+    e_minus = np.exp(-1j*k*d_nm)
+    out = np.empty_like(k, dtype=complex)
+    for t, kv in enumerate(k):
+        s = np.exp(1j*kv*d_nm*j) @ A_SIGN
+        out[t] = 1j * s * (e_minus[t]-1.0) / (kv+0j)
+    return np.abs(out)
+
+def phi2_lambda(ls_nm, li_nm):
+    return _phi_of_k(D_HALF_NM, k_basic_nm(ls_nm, li_nm))
+
+def solve_lambda_i0(ls_nm, a0=1505.0, b0=1565.0):
+    f = lambda li: float(delta_k_grating_nm(ls_nm, li))
+    a,b = a0,b0
+    for _ in range(160):
+        fa, fb = f(a), f(b)
+        if np.sign(fa) != np.sign(fb):
+            return brentq(f, a, b, maxiter=800)
+        a -= 0.5; b += 0.5
+    grid = np.linspace(a0-30, b0+30, 60001)
+    vals = np.array([f(v) for v in grid])
+    return float(grid[np.argmin(np.abs(vals))])
+
+def theory_curve_shifted_for_fig7(mu_center, xfull, step_nm=0.01):
+    li0   = solve_lambda_i0(LAM_S0)
+    shift = float(mu_center) - li0
+    li    = np.arange(xfull[0]-shift, xfull[1]-shift+1e-9, step_nm)
+    x_plot = li + shift
+    y_lin  = (phi2_lambda(LAM_S0, li)**2)
+    y_lin /= np.nanmax(y_lin)
+    y_db   = 10.0*np.log10(np.maximum(y_lin, 1e-20))
+    return x_plot, y_db
+
+def draw_fig8_with_theory(spec_full_4, mu_fourstep, FWHM_fourstep, A_fourstep, xfull,
+                          out_png="fig8_full_4step_dB_withTheory.png"):
+    x = spec_full_4["wl"].to_numpy()
+    y = spec_full_4["y"].to_numpy()
+    ref = float(np.nanmax(y))
+    to_db = lambda arr: 10*np.log10(np.maximum(np.asarray(arr, float), 1e-15)/ref)
+
+    y_db = to_db(y)
+
+    xd = np.linspace(xfull[0], xfull[1], 1400)
+    sig = FWHM_fourstep / (2*np.sqrt(2*np.log(2)))
+    y_g_db = to_db(gauss(xd, A_fourstep, mu_fourstep, sig))
+    y_s_db = to_db(sinc2_curve(xd, mu_fourstep, FWHM_fourstep, A_fourstep))
+
+    fig, ax = plt.subplots(figsize=(8.8, 4.6))
+    ax.plot(x, y_db, linestyle='none', marker='o', ms=2.0,
+            mfc=COL_DATA, mec=COL_DATA, mew=0, label="data (mean only)")
+    lg, = ax.plot(xd, y_g_db, color=COL_GAUSS, lw=GAUSS_LW, label="Gaussian")
+    ls, = ax.plot(xd, y_s_db, color=COL_SINC2, lw=SINC_LW, label="sinc²")
+    try: ls.set_linestyle((0,(6,6)))
+    except: ls.set_dashes([6,6])
+
+    xs, y_th = theory_curve_shifted_for_fig7(mu_fourstep, xfull, step_nm=0.01)
+    ax.plot(xs, y_th, color="#b22222", lw=1.8, label="CPKTP PMF (idler theory)")
+
+    ax.set_xlim(xfull)
+    ax.set_ylim(-50.0, 0.0)
+    ax.set_xlabel("Wavelength (nm)")
+    ax.set_ylabel("Relative power (dB vs peak)")
+    ax.grid(alpha=0.3)
+    ax.legend(loc="upper left", bbox_to_anchor=(0.02, 0.98),
+              frameon=True, fancybox=True, handlelength=1.6,
+              handletextpad=0.6, borderpad=0.3)
+
+    title1 = "Four-step BG-removed Normalized SFG vs Wavelength (C+L, dB scale)"
+    title2 = f"μ={mu_fourstep:.3f} nm, FWHM={FWHM_fourstep:.3f} nm  (CPKTP PMF overlaid)"
+    ax.set_title(title1 + "\n" + title2)
+    fig.tight_layout(rect=[0,0,0.98,0.95])
+    fig.savefig(out_png, dpi=300); plt.close(fig)
+    print("Saved:", out_png)
+
+# 8) Fig.8 —— 在 Fig.7 的基础上叠加红色理论曲线
+draw_fig8_with_theory(
+    spec_full_4,
+    mu_C4, FWHM_C4, A_C4,
+    xfull,
+    out_png="fig8_full_4step_dB_withTheory.png"
+)
+
+# ================== 9) 新增：C-band zoom (四步) ==================
+# 范围：从 C 段最小波长 到 1542 nm；其余绘法与 Fig.4 一致（最小改动）
+# —— 9) 新增：C-band zoom (四步) —— 
+C_zoom_xlim = (float(specC_4st["wl"].min()), 1542.0)
+
+# ★ 新增：根据 zoom 区间内的数据自动设置 y 轴范围（放大）
+_m = (specC_4st["wl"] >= C_zoom_xlim[0]) & (specC_4st["wl"] <= C_zoom_xlim[1])
+_ylo = (specC_4st.loc[_m, "y"] - specC_4st.loc[_m, "yerr"]).min()
+_yhi = (specC_4st.loc[_m, "y"] + specC_4st.loc[_m, "yerr"]).max()
+C_zoom_ylim = (min(0.0, float(_ylo)*1.2), float(_yhi)*1.15)
+
+draw_panel(
+    specC_4st,            # 数据：C 段四步结果
+    mu_C4, FWHM_C4, A_C4, # 叠加模型：C 段四步的高斯/同心 sinc²
+    xfull,
+    "fig9_C_band_zoom_4step.png",
+    "Four-step BG-removed Normalized SFG (C-band zoom)",
+    zoom_xlim=C_zoom_xlim,
+    ylim=C_zoom_ylim,     # ★ 新增：传入刚计算的 y 轴范围
+    label_data="C-band data (mean ± 1σ)"
+)
+
+# ========= 背景：紧致 y 轴 & 原始均值绘图（不归一化） =========
+
+def tight_ylim_from_y(y, pad_frac=0.01, lock_zero=False,
+                      min_span_rel=1e-3, min_span_abs=1e-10):
+    """
+    按数据自适应 y 轴；去掉“固定 1.0 最小跨度”的兜底。
+    当数据几乎恒定时，用数据量级给一个很小的最小跨度。
+    """
+    y = np.asarray(y, float)
+    y = y[np.isfinite(y)]
+    if y.size == 0:
+        return (-1.0, 1.0)
+
+    ymin = float(np.min(y))
+    ymax = float(np.max(y))
+    span = ymax - ymin
+
+    if span <= 0.0:
+        center = 0.5 * (ymax + ymin)
+        level  = max(abs(center), abs(ymax), abs(ymin), 1.0)
+        span   = max(min_span_abs, min_span_rel * level)
+        ymin   = center - 0.5 * span
+        ymax   = center + 0.5 * span
+
+    pad = span * max(pad_frac, 0.0)
+    lo, hi = ymin - pad, ymax + pad
+
+    if lock_zero:
+        lo = min(lo, 0.0)
+        hi = max(hi, 0.0)
+
+    return lo, hi
+
+
+def draw_bg_mean(spec, out_png, title, label="mean (drop 50)",
+                 ylim=None, pad_frac=0.0, lock_zero=False, debug=False):
+    """
+    原始背景均值图（不归一化、无误差棒）：y 轴使用 min/max±pad。
+    """
+    x = np.asarray(spec["wl"], float)
+    y = np.asarray(spec["y"],  float)
+
+    if debug:
+        print(f"[{title}] y.min={np.min(y):.6g}, y.max={np.max(y):.6g}, N={y.size}")
+
+    fig, ax = plt.subplots(figsize=(8.8, 4.6))
+    ax.plot(x, y, linestyle="none", marker="o", ms=DATA_MS,
+            mfc=COL_DATA, mec=COL_DATA, mew=0, label=label)
+
+    ax.set_xlabel("Wavelength (nm)")
+    ax.set_ylabel("Raw background (a.u.)")
+    ax.set_title(title)
+    ax.grid(alpha=0.3)
+    ax.legend(loc="upper left", frameon=True, fancybox=True)
+
+    if ylim is None:
+        lo, hi = tight_ylim_from_y(y, pad_frac=pad_frac, lock_zero=lock_zero)
+        ax.set_ylim(lo, hi)
+    else:
+        ax.set_ylim(ylim)
+
+    fig.tight_layout()
+    fig.savefig(out_png); plt.close(fig)
+    print("Saved:", out_png)
+
+
+# ========= 生成三路背景的“drop 50 后取均值”数据（不归一化） =========
+
+def drop50_mean(df, col):
+    out = []
+    for wl, g in df.groupby("wl"):
+        v = np.asarray(g[col], float)[50:]   # 丢前 50
+        if v.size > 0:
+            out.append((float(wl), float(np.mean(v))))
+    return pd.DataFrame(out, columns=["wl","y"]).sort_values("wl")
+
+# C/L 分开做均值，再拼接（避免跨段样本数不同带来的偏差）
+spec_bg00 = pd.concat([drop50_mean(dfC, "bg00"), drop50_mean(dfL, "bg00")], ignore_index=True).sort_values("wl")
+spec_bg01 = pd.concat([drop50_mean(dfC, "bg01"), drop50_mean(dfL, "bg01")], ignore_index=True).sort_values("wl")
+spec_bg10  = sigma_clip(spec_bg10,  col="y", k=6.0)
+spec_combo = sigma_clip(spec_combo, col="y", k=6.0)
+
+# ====== 简单 6σ 剔除工具（全局均值/标准差）======
+def sigma_clip(df, col="y", k=6.0):
+    y = df[col].to_numpy(dtype=float)
+    mu = float(np.mean(y))
+    sd = float(np.std(y, ddof=1))
+    if not np.isfinite(sd) or sd == 0:
+        return df  # 无法判断就不剔除
+    mask = np.abs(y - mu) <= k * sd
+    print(f"[sigma_clip] {col}: removed {np.count_nonzero(~mask)} / {len(y)} (k={k})")
+    return df.loc[mask].copy()
+
+# ========= Fig10/11/12 =========
+draw_bg_mean(spec_bg00,
+             "fig10_bg00_raw.png",
+             "BG00 vs Wavelength (raw mean, drop first 50)",
+             pad_frac=0.0, lock_zero=False, debug=True)
+
+draw_bg_mean(spec_bg01,
+             "fig11_bg01_raw.png",
+             "BG01 vs Wavelength (raw mean, drop first 50)",
+             pad_frac=0.0, lock_zero=False, debug=True)
+
+draw_bg_mean(spec_bg10,
+             "fig12_bg10_raw.png",
+             "BG10 vs Wavelength (raw mean, drop first 50)",
+             pad_frac=0.0, lock_zero=False, debug=True)
+
+
+# ========= Fig13: (BG01 + BG10 − BG00)（逐样本对齐后再求均值） =========
+def drop50_combo_samplewise(df):
+    """
+    在每个波长下，先把三列在“同一帧序号”对齐，再做：
+    combo_k = bg01[k] + bg10[k] - bg00[k]
+    然后对 combo_k 取均值。这样避免“均值相加 ≠ 样本逐项相加后均值”的偏差。
+    """
+    out = []
+    for wl, g in df.groupby("wl"):
+        a = np.asarray(g["bg01"], float)[50:]
+        b = np.asarray(g["bg10"], float)[50:]
+        c = np.asarray(g["bg00"], float)[50:]
+        n = min(a.size, b.size, c.size)
+        if n <= 0: 
+            continue
+        combo = a[:n] + b[:n] - c[:n]
+        out.append((float(wl), float(np.mean(combo))))
+    return pd.DataFrame(out, columns=["wl","y"]).sort_values("wl")
+
+spec_combo = sigma_clip(spec_combo, col="y", k=6.0)
+
+draw_bg_mean(
+    spec_combo,
+    out_png="fig13_bg01pbg10_minus_bg00_raw.png",
+    title="(BG01 + BG10 − BG00) vs Wavelength (raw mean, drop first 50)",
+    label="mean(BG01+BG10−BG00)",
+    pad_frac=0.0, lock_zero=False, debug=True
+)
+
+# ========= 稳健去极值 + 对比绘图（最小改动，不影响其他图） =========
+# 思路：按波段断点把数据分成 C 段/L 段，各段内用 MAD 判断>kσ 的点为 outlier
+# 再各出一张 "zoom" 图（去除异常点后自适应 y 轴），同时打印异常点列表以便复查
+
+def _segments_by_gap(df, gap_nm=0.5):
+    wl = np.asarray(df["wl"], float)
+    brk = np.where(np.diff(wl) > gap_nm)[0]
+    idx_splits = np.split(np.arange(wl.size), brk+1)
+    return [df.iloc[idx].copy() for idx in idx_splits]
+
+def _mad_mask(y, k=6.0):
+    y = np.asarray(y, float)
+    med = np.median(y)
+    mad = np.median(np.abs(y - med))
+    sigma = 1.4826 * mad if mad > 0 else 0.0
+    if sigma == 0:
+        return np.ones_like(y, dtype=bool), med, med, 0.0
+    lo, hi = med - k*sigma, med + k*sigma
+    mask = (y >= lo) & (y <= hi)
+    return mask, lo, hi, sigma
+
+def mask_outliers_per_segment(spec, k=6.0, gap_nm=0.5, name=""):
+    segs = _segments_by_gap(spec, gap_nm=gap_nm)
+    kept = []
+    out_rows = []
+    for s in segs:
+        y = s["y"].to_numpy()
+        m, lo, hi, sig = _mad_mask(y, k=k)
+        kept.append(s[m])
+        if (~m).any():
+            bad = s.loc[~m, ["wl","y"]]
+            bad = bad.assign(segment_min=float(s["wl"].min()),
+                             segment_max=float(s["wl"].max()),
+                             thr_lo=lo, thr_hi=hi, sigma=sig)
+            out_rows.append(bad)
+    kept_df = pd.concat(kept, ignore_index=True).sort_values("wl")
+    out_df  = (pd.concat(out_rows, ignore_index=True).sort_values("wl")
+               if out_rows else pd.DataFrame(columns=["wl","y","segment_min","segment_max","thr_lo","thr_hi","sigma"]))
+    if len(out_df):
+        print(f"[{name}] outliers={len(out_df)}  (k={k})")
+        print(out_df.head(20).to_string(index=False))
+    else:
+        print(f"[{name}] no outliers (k={k}).")
+    return kept_df, out_df
+
+# ——对 BG10 和 组合量做稳健去极值；gap 取 0.5 nm 区分 C/L 段；k=6 比较保守——
+bg10_kept, bg10_bad = mask_outliers_per_segment(spec_bg10, k=6.0, gap_nm=0.5, name="BG10")
+combo_kept, combo_bad = mask_outliers_per_segment(spec_combo, k=6.0, gap_nm=0.5, name="BG01+BG10−BG00")
+
+# ——原图你已保存；再各出一张“zoom”版（去掉极值后）——
+draw_bg_mean(bg10_kept,
+             "fig12_bg10_raw_zoom.png",
+             "BG10 vs Wavelength (raw mean, drop first 50) — outliers removed",
+             pad_frac=0.0, lock_zero=False, debug=True)
+
+draw_bg_mean(combo_kept,
+             "fig13_bg01pbg10_minus_bg00_raw_zoom.png",
+             "(BG01 + BG10 − BG00) vs Wavelength (raw mean) — outliers removed",
+             label="mean(BG01+BG10−BG00), no outliers",
+             pad_frac=0.0, lock_zero=False, debug=True)
+
+# （可选）同时画“对比图”：淡色原始 + 实线去极值，方便肉眼对比
+def overlay_zoom(raw_df, kept_df, out_png, title):
+    x_raw, y_raw = raw_df["wl"].to_numpy(), raw_df["y"].to_numpy()
+    x_k, y_k     = kept_df["wl"].to_numpy(), kept_df["y"].to_numpy()
+    fig, ax = plt.subplots(figsize=(8.8, 4.6))
+    ax.plot(x_raw, y_raw, linestyle="none", marker="o", ms=2.0, alpha=0.35,
+            mfc=COL_DATA, mec=COL_DATA, mew=0, label="raw mean")
+    ax.plot(x_k, y_k,  linestyle="-",  lw=1.6, color=COL_GAUSS, label="mean (no outliers)")
+    ax.set_xlabel("Wavelength (nm)")
+    ax.set_ylabel("Raw background (a.u.)")
+    ax.set_title(title); ax.grid(alpha=0.3); ax.legend(loc="upper left")
+    lo, hi = tight_ylim_from_y(y_k, pad_frac=0.01, lock_zero=False)
+    ax.set_ylim(lo, hi)
+    fig.tight_layout(); fig.savefig(out_png); plt.close(fig); print("Saved:", out_png)
+
+overlay_zoom(spec_bg10, bg10_kept,
+             "fig12b_bg10_raw_overlay.png",
+             "BG10 raw mean vs wavelength (overlay: raw vs no-outliers)")
+
+overlay_zoom(spec_combo, combo_kept,
+             "fig13b_combo_raw_overlay.png",
+             "(BG01+BG10−BG00) raw mean (overlay: raw vs no-outliers)")
+
+# ========= NEW: raw 四步组合 (11 - 10 - 01 + 00) 的 C/L zoom =========
+# 说明：逐波长丢前 50 帧，仅在每段内对 sfg/bg00/bg01/bg10 做均值与 std，
+#       组合为 raw_combo = mean(11) - mean(10) - mean(01) + mean(00)
+#       不做任何除以输入功率的归一化。
+
+def fourstep_raw_combo(df):
+    """
+    每个波长：丢前 50 帧 -> 计算
+      A_raw = mean(sfg) - mean(bg10) - mean(bg01) + mean(bg00)
+    并给出误差传递的 std（四者独立假设）：
+      sA = sqrt(std(sfg)^2 + std(bg10)^2 + std(bg01)^2 + std(bg00)^2)
+    返回 DataFrame(wl, y, yerr)
+    """
+    out = []
+    for wl, g in df.groupby("wl"):
+        g2 = g.iloc[50:]  # 丢前 50 帧
+        if min(len(g2["sfg"]), len(g2["bg00"]), len(g2["bg01"]), len(g2["bg10"])) < 5:
+            continue
+        m11 = float(g2["sfg"].mean())
+        m10 = float(g2["bg10"].mean())
+        m01 = float(g2["bg01"].mean())
+        m00 = float(g2["bg00"].mean())
+        s11 = float(g2["sfg"].std(ddof=1))
+        s10 = float(g2["bg10"].std(ddof=1))
+        s01 = float(g2["bg01"].std(ddof=1))
+        s00 = float(g2["bg00"].std(ddof=1))
+        Araw = m11 - m10 - m01 + m00
+        sA   = (s11**2 + s10**2 + s01**2 + s00**2) ** 0.5
+        out.append((wl, Araw, sA))
+    return (pd.DataFrame(out, columns=["wl","y","yerr"])
+              .sort_values("wl")
+              .reset_index(drop=True))
+
+def _tight_ylim_from_yerr(y, yerr, pad_frac=0.08):
+    y = np.asarray(y, float); e = np.asarray(yerr, float)
+    lo = float(np.nanmin(y - e))
+    hi = float(np.nanmax(y + e))
+    span = hi - lo
+    if span <= 0:
+        span = max(abs(lo), abs(hi), 1.0) * 1e-3
+        lo -= 0.5*span; hi += 0.5*span
+    pad = span * pad_frac
+    return lo - pad, hi + pad
+
+def draw_raw_combo_zoom(spec, xlim, out_png, title, label="raw (11−10−01+00) mean ± 1σ"):
+    x = spec["wl"].to_numpy(); y = spec["y"].to_numpy(); s = spec["yerr"].to_numpy()
+    fig, ax = plt.subplots(figsize=(8.8, 4.6))
+    ax.errorbar(x, y, yerr=s, fmt='o', ms=DATA_MS,
+                mfc=COL_DATA, mec=COL_DATA, mew=0,
+                ecolor=COL_DATA, elinewidth=ERR_ELW, capsize=ERR_CAP,
+                label=label)
+    ax.set_xlim(xlim)
+    ylim = _tight_ylim_from_yerr(y, s, pad_frac=0.08)
+    ax.set_ylim(*ylim)
+    ax.set_xlabel("Wavelength (nm)")
+    ax.set_ylabel("Raw four-step combo (a.u.)")
+    ax.set_title(title)
+    ax.grid(alpha=0.3)
+    ax.legend(loc="upper left", frameon=True, fancybox=True)
+    fig.tight_layout()
+    fig.savefig(out_png); plt.close(fig)
+    print("Saved:", out_png, "| ylim:", ylim)
+
+# —— 计算 C 段 / L 段的 raw 四步组合 —— 
+specC_raw4 = fourstep_raw_combo(dfC)
+specL_raw4 = fourstep_raw_combo(dfL)
+
+# —— 画两张 zoom 图 —— 
+# C-band：沿用你之前 Fig9 的横轴范围（从最小到 1542 nm）
+C_zoom_xlim = (float(specC_raw4["wl"].min()), 1542.0)
+draw_raw_combo_zoom(
+    specC_raw4, C_zoom_xlim,
+    out_png="fig_raw4_C_band_zoom.png",
+    title="Four-step BG-removed (raw 11−10−01+00) — C-band zoom"
+)
+
+# L-band：沿用你脚本里的 L 段 zoom 范围（如果已有 L_xlim，就直接用；否则从数据自动取）
+try:
+    L_zoom_xlim = L_xlim
+except NameError:
+    L_zoom_xlim = (float(specL_raw4["wl"].min()), float(specL_raw4["wl"].max()))
+draw_raw_combo_zoom(
+    specL_raw4, L_zoom_xlim,
+    out_png="fig_raw4_L_band_zoom.png",
+    title="Four-step BG-removed (raw 11−10−01+00) — L-band zoom"
+)
+
